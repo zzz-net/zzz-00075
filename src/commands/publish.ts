@@ -3,7 +3,7 @@ import chalk from 'chalk';
 import { FileStorage } from '../storage/FileStorage';
 import { DryRunEngine } from '../services/DryRunEngine';
 import { DryRunResult } from '../types';
-import { printBlockReasons, formatSummaryBox } from '../services/DryRunSummary';
+import { printBlockReasons, formatSummaryBox, formatPublishPlanComparison } from '../services/DryRunSummary';
 
 export function registerPublishCommand(program: Command, storage: FileStorage): void {
   program
@@ -14,6 +14,7 @@ export function registerPublishCommand(program: Command, storage: FileStorage): 
     .option('--skip-verify', 'Skip hash/size verification (license HARD BLOCK still enforced)')
     .option('--force', 'Force publish overriding hash/size (license HARD BLOCK still enforced)')
     .option('--dry-run', 'Preview what publish would do without changing state (alias for dry-run publish)')
+    .option('--show-compare', 'Show the publish plan comparison view even for real publish')
     .action(async (versionId: string | undefined, options: any) => {
       try {
         let state = storage.loadState();
@@ -51,6 +52,7 @@ export function registerPublishCommand(program: Command, storage: FileStorage): 
 
         if (options.dryRun) {
           console.log(formatSummaryBox(precheck));
+          console.log(formatPublishPlanComparison(precheck.comparison));
           console.log(chalk.gray('(This was a --dry-run preview. No state was changed.)'));
           if (precheck.blockedAt !== 'none') {
             process.exit(1);
@@ -61,9 +63,26 @@ export function registerPublishCommand(program: Command, storage: FileStorage): 
         if (precheck.blockedAt !== 'none') {
           printBlockReasons(precheck);
           console.log('');
-          console.log(chalk.yellow('Tip: Run `dataset-cli dry-run publish --approver <name>` for a detailed pre-flight report before publishing.'));
+          console.log(chalk.yellow('Tip: Run `dataset-cli dry-run publish --approver <name>` for a detailed pre-flight report with side-by-side comparison.'));
           process.exit(1);
         }
+
+        if (options.showCompare) {
+          console.log(formatPublishPlanComparison(precheck.comparison));
+        }
+
+        const comp = precheck.comparison;
+        if (comp.addedFileCount > 0 || comp.deletedFileCount > 0 || comp.modifiedFileCount > 0) {
+          const deltaSign = comp.totalSizeDelta >= 0 ? '+' : '';
+          console.log(chalk.cyan(
+            `Changes since last published: +${comp.addedFileCount} added, -${comp.deletedFileCount} deleted, ` +
+            `~${comp.modifiedFileCount} modified (${deltaSign}${comp.totalSizeDelta} bytes)`
+          ));
+        }
+        if (comp.willReplaceCurrentPublished && comp.publishedVersionLabel) {
+          console.log(chalk.yellow(`This will replace current published version: ${comp.publishedVersionLabel}`));
+        }
+        console.log('');
 
         if (!options.skipVerify) {
           console.log(chalk.green('Verification passed'));
@@ -101,6 +120,9 @@ export function registerPublishCommand(program: Command, storage: FileStorage): 
         console.log(`  ${chalk.cyan('Rule version:')} ${manifest.ruleVersion}`);
         console.log(`  ${chalk.cyan('Manifest hash:')} ${manifest.signature}`);
         console.log(`  ${chalk.cyan('Manifest path:')} ${publishedVersion.exportPath}`);
+        if (comp.hasPublishedVersion) {
+          console.log(`  ${chalk.cyan('Compared against:')} ${comp.publishedVersionLabel} (${comp.publishedVersionId?.substring(0, 16)}...)`);
+        }
         console.log('');
         
         if (previousVersion) {

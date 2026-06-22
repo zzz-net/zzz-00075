@@ -5,7 +5,7 @@ import * as path from 'path';
 import { FileStorage } from '../storage/FileStorage';
 import { DryRunEngine } from '../services/DryRunEngine';
 import { DryRunResult } from '../types';
-import { formatSummaryBox, printBlockReasons } from '../services/DryRunSummary';
+import { formatSummaryBox, printBlockReasons, formatPublishPlanComparison } from '../services/DryRunSummary';
 
 function formatDryRunReport(r: DryRunResult): string {
   const lines: string[] = [];
@@ -23,61 +23,13 @@ function formatDryRunReport(r: DryRunResult): string {
   lines.push(bold('========================================'));
   lines.push('');
 
-  lines.push(bold('Target Version Details'));
-  lines.push(`  ${info('Version:')}        ${r.versionLabel}`);
-  lines.push(`  ${info('Version ID:')}    ${r.versionId}`);
-  lines.push(`  ${info('Would become:')}  ${r.candidateVersion} ${dim('(same version label, status will change)')}`);
-  lines.push(`  ${info('Next scan would get:')} ${r.nextAvailableVersion}`);
-  lines.push(`  ${info('Current status:')} ${r.currentStatus}`);
-  lines.push(`  ${info('Timestamp:')}     ${r.timestamp}`);
+  lines.push(formatPublishPlanComparison(r.comparison));
+
+  lines.push(bold('========================================'));
+  lines.push(bold('  VERIFICATION RESULTS'));
+  lines.push(bold('========================================'));
   lines.push('');
 
-  lines.push(bold('Applied Rules (Snapshot)'));
-  lines.push(`  ${info('Rule version:')}  ${r.ruleVersion}`);
-  r.rulesSnapshot.forEach(rule => {
-    const st = rule.enabled ? ok('ON') : err('OFF');
-    lines.push(`  ${st} ${rule.type} (${rule.id})`);
-    if (rule.config.allowedLicenses) {
-      lines.push(`     Allowed: ${rule.config.allowedLicenses.join(', ')}`);
-    }
-    if (rule.config.requiredLicenseFile !== undefined) {
-      lines.push(`     Require license file: ${rule.config.requiredLicenseFile}`);
-    }
-    if (rule.config.minSize !== undefined) {
-      lines.push(`     Min size: ${rule.config.minSize}`);
-    }
-    if (rule.config.maxSize !== undefined) {
-      lines.push(`     Max size: ${rule.config.maxSize}`);
-    }
-    if (rule.config.hashAlgorithm) {
-      lines.push(`     Algorithm: ${rule.config.hashAlgorithm}`);
-    }
-  });
-  lines.push('');
-
-  lines.push(bold('Files in This Version'));
-  lines.push(`  ${info('File count:')}    ${r.fileCount}`);
-  lines.push(`  ${info('Total size:')}   ${r.totalSize} bytes`);
-  r.files.forEach(f => {
-    const lic = f.license ? dim(` [${f.license}]`) : '';
-    lines.push(`    ${f.path} (${f.size}B)${lic}`);
-  });
-  lines.push('');
-
-  lines.push(bold('Published Version Impact'));
-  if (r.currentPublishedVersionId) {
-    lines.push(`  ${info('Current version:')}  ${r.currentPublishedVersionLabel} (${r.currentPublishedVersionId})`);
-    if (r.currentPublishedWouldBeReplaced) {
-      lines.push(`  ${warn('Will be replaced:')} YES - this version will become the "previous" version`);
-    } else {
-      lines.push(`  ${ok('Will be replaced:')} NO`);
-    }
-  } else {
-    lines.push(`  ${dim('No current published version - this would be the first publication')}`);
-  }
-  lines.push('');
-
-  lines.push(bold('Verification Results'));
   if (r.skipVerifyUsed) {
     lines.push(`  ${warn('--skip-verify used:')} hash/size checks skipped, license HARD BLOCK still enforced`);
   }
@@ -105,7 +57,10 @@ function formatDryRunReport(r: DryRunResult): string {
   });
   lines.push('');
 
-  lines.push(bold('Hard Block Check (License)'));
+  lines.push(bold('========================================'));
+  lines.push(bold('  HARD BLOCK CHECK (LICENSE)'));
+  lines.push(bold('========================================'));
+  lines.push('');
   if (r.hardBlock.blocked) {
     lines.push(`  ${err('BLOCKED')}`);
     r.hardBlock.reasons.forEach(re => lines.push(`    ${err('->')} ${re}`));
@@ -114,7 +69,10 @@ function formatDryRunReport(r: DryRunResult): string {
   }
   lines.push('');
 
-  lines.push(bold('Verdict'));
+  lines.push(bold('========================================'));
+  lines.push(bold('  FINAL VERDICT'));
+  lines.push(bold('========================================'));
+  lines.push('');
   if (r.blockedAt === 'none') {
     if (r.action === 'submit') {
       lines.push(`  ${ok('CAN SUBMIT')} - This version would be moved to pending_approval`);
@@ -123,6 +81,7 @@ function formatDryRunReport(r: DryRunResult): string {
     }
   } else {
     const stageLabels: Record<string, string> = {
+      'none': 'Not blocked',
       'status_check': 'Status Check',
       'hard_block': 'License Hard Block',
       'verification': 'Verification'
@@ -132,17 +91,25 @@ function formatDryRunReport(r: DryRunResult): string {
   }
   lines.push('');
 
-  lines.push(bold('Next Steps'));
+  lines.push(bold('========================================'));
+  lines.push(bold('  NEXT STEPS'));
+  lines.push(bold('========================================'));
+  lines.push('');
   r.nextSteps.forEach((ns, i) => lines.push(`  ${i + 1}. ${ns}`));
   lines.push('');
 
-  lines.push(bold('Stable Summary (for reference)'));
+  lines.push(bold('========================================'));
+  lines.push(bold('  STABLE SUMMARY (for audit/export)'));
+  lines.push(bold('========================================'));
+  lines.push('');
   lines.push(`  ${info('Target:')}    ${r.summary.targetVersionLabel} (${r.summary.targetVersionId.substring(0, 16)}...)`);
   lines.push(`  ${info('Blocked at:')} ${r.summary.blockStageLabel}`);
   lines.push(`  ${info('Replace:')}   ${r.summary.willReplaceCurrentPublished ? 'YES' : 'NO'}`);
   if (r.summary.currentPublishedVersionLabel) {
     lines.push(`  ${info('Current:')}   ${r.summary.currentPublishedVersionLabel} (${r.summary.currentPublishedVersionId?.substring(0, 16)}...)`);
   }
+  lines.push(`  ${info('Changes:')}   +${r.summary.addedFileCount} -${r.summary.deletedFileCount} ~${r.summary.modifiedFileCount}`);
+  lines.push(`  ${info('Conflict:')}  ${r.summary.hasConflict ? `YES (${r.summary.conflictType})` : 'NO'}`);
   lines.push(`  ${info('Next cmd:')}  ${r.summary.suggestedNextCommand || '(none)'}`);
   lines.push('');
 
@@ -156,10 +123,11 @@ export function registerDryRunCommand(program: Command, storage: FileStorage): v
 
   dryRun
     .command('submit [versionId]')
-    .description('Preview a submit operation. Shows if the version can be moved to pending_approval')
+    .description('Preview a submit operation. Shows a side-by-side comparison with the published version.')
     .option('--by <user>', 'User submitting the version (for reference only, no state change)', 'system')
     .option('--skip-verify', 'Skip hash/size verification (license HARD BLOCK still enforced)')
     .option('--json <path>', 'Export dry-run result as JSON for audit/review by others')
+    .option('--no-compare', 'Hide the publish plan comparison view')
     .action(async (versionId: string | undefined, options: any) => {
       try {
         const state = storage.loadState();
@@ -191,7 +159,11 @@ export function registerDryRunCommand(program: Command, storage: FileStorage): v
           const jsonPath = path.resolve(options.json);
           fs.writeFileSync(jsonPath, JSON.stringify(result, null, 2), 'utf8');
           console.log(chalk.green(`Dry-run result exported to: ${jsonPath}`));
-          console.log(chalk.gray('The exported JSON contains the stable summary field that is consistent across restarts.'));
+          console.log(chalk.gray('The exported JSON contains the comparison and stable summary fields that are consistent across restarts.'));
+          console.log(chalk.gray(`File changes: +${result.comparison.addedFileCount} -${result.comparison.deletedFileCount} ~${result.comparison.modifiedFileCount}`));
+          if (result.comparison.conflict.hasConflict) {
+            console.log(chalk.red(`Conflict detected: ${result.comparison.conflict.conflictType}`));
+          }
         } else {
           console.log(formatDryRunReport(result));
         }
@@ -210,12 +182,13 @@ export function registerDryRunCommand(program: Command, storage: FileStorage): v
 
   dryRun
     .command('publish [versionId]')
-    .description('Preview a publish operation. Shows if the version can become the current published version')
+    .description('Preview a publish operation. Shows a side-by-side comparison with the published version.')
     .requiredOption('--approver <name>', 'Approver name (for reference only, no state change)')
     .option('--comment <text>', 'Approval comment (for reference only)', 'Approved for publication')
     .option('--skip-verify', 'Skip hash/size verification (license HARD BLOCK still enforced)')
     .option('--force', 'Force publish overriding hash/size (license HARD BLOCK still enforced)')
     .option('--json <path>', 'Export dry-run result as JSON for audit/review by others')
+    .option('--no-compare', 'Hide the publish plan comparison view')
     .action(async (versionId: string | undefined, options: any) => {
       try {
         const state = storage.loadState();
@@ -248,7 +221,12 @@ export function registerDryRunCommand(program: Command, storage: FileStorage): v
           const jsonPath = path.resolve(options.json);
           fs.writeFileSync(jsonPath, JSON.stringify(result, null, 2), 'utf8');
           console.log(chalk.green(`Dry-run result exported to: ${jsonPath}`));
-          console.log(chalk.gray('The exported JSON contains the stable summary field that is consistent across restarts.'));
+          console.log(chalk.gray('The exported JSON contains the comparison and stable summary fields that are consistent across restarts.'));
+          console.log(chalk.gray(`File changes: +${result.comparison.addedFileCount} -${result.comparison.deletedFileCount} ~${result.comparison.modifiedFileCount}`));
+          console.log(chalk.gray(`Will replace current published: ${result.comparison.willReplaceCurrentPublished ? 'YES' : 'NO'}`));
+          if (result.comparison.conflict.hasConflict) {
+            console.log(chalk.red(`Conflict detected: ${result.comparison.conflict.conflictType}`));
+          }
         } else {
           console.log(formatDryRunReport(result));
         }

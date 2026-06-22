@@ -1,5 +1,5 @@
 import chalk from 'chalk';
-import { DryRunResult, DryRunBlockStage, DryRunAction } from '../types';
+import { DryRunResult, DryRunBlockStage, DryRunAction, PublishPlanComparison, FileDiff } from '../types';
 
 const stageLabels: Record<string, string> = {
   'none': 'Not blocked',
@@ -21,11 +21,17 @@ export interface DryRunStableSummary {
   ruleVersion: string;
   fileCount: number;
   totalSize: number;
+  addedFileCount: number;
+  deletedFileCount: number;
+  modifiedFileCount: number;
+  hasConflict: boolean;
+  conflictType: string | null;
 }
 
 export function buildStableSummary(r: DryRunResult): DryRunStableSummary {
   const stage = r.blockedAt || 'none';
   const willReplace = r.currentPublishedWouldBeReplaced;
+  const comp = r.comparison;
 
   let suggested = '';
   if (stage === 'none') {
@@ -38,7 +44,9 @@ export function buildStableSummary(r: DryRunResult): DryRunStableSummary {
       if (r.skipVerifyUsed) suggested += ' --skip-verify';
     }
   } else if (stage === 'status_check') {
-    if (r.action === 'submit') {
+    if (comp?.conflict?.hasConflict) {
+      suggested = comp.conflict.resolutionHints[0] || 'Resolve conflicts first';
+    } else if (r.action === 'submit') {
       suggested = 'dataset-cli scan <directory>';
     } else {
       suggested = 'dataset-cli submit';
@@ -65,7 +73,12 @@ export function buildStableSummary(r: DryRunResult): DryRunStableSummary {
     suggestedNextCommand: suggested,
     ruleVersion: r.ruleVersion,
     fileCount: r.fileCount,
-    totalSize: r.totalSize
+    totalSize: r.totalSize,
+    addedFileCount: comp?.addedFileCount || 0,
+    deletedFileCount: comp?.deletedFileCount || 0,
+    modifiedFileCount: comp?.modifiedFileCount || 0,
+    hasConflict: comp?.conflict?.hasConflict || false,
+    conflictType: comp?.conflict?.conflictType || null
   };
 }
 
@@ -88,6 +101,14 @@ export function formatSummaryBox(r: DryRunResult): string {
   lines.push(`│ ${info('Current status:')}  ${s.targetVersionStatus}${' '.repeat(Math.max(0, 30 - s.targetVersionStatus.length))} │`);
   lines.push(`│ ${info('Rule version:')}    ${s.ruleVersion}${' '.repeat(Math.max(0, 30 - s.ruleVersion.length))} │`);
   lines.push(`│ ${info('Files / Size:')}    ${s.fileCount} files, ${s.totalSize} B${' '.repeat(Math.max(0, 22 - String(s.fileCount).length - String(s.totalSize).length))} │`);
+  if (s.addedFileCount > 0 || s.deletedFileCount > 0 || s.modifiedFileCount > 0) {
+    const diffLine = `+${s.addedFileCount} -${s.deletedFileCount} ~${s.modifiedFileCount}`;
+    lines.push(`│ ${warn('Changes:')}         ${diffLine}${' '.repeat(Math.max(0, 33 - diffLine.length))} │`);
+  }
+  if (s.hasConflict) {
+    const conflictTxt = `CONFLICT: ${s.conflictType || 'unknown'}`;
+    lines.push(`│ ${err('Conflict:')}        ${conflictTxt}${' '.repeat(Math.max(0, 31 - conflictTxt.length))} │`);
+  }
   lines.push(bold('├──────────────────────────────────────────────────┤'));
 
   if (s.blockStage === 'none') {
@@ -120,10 +141,194 @@ export function formatSummaryBox(r: DryRunResult): string {
   return lines.join('\n');
 }
 
+function padRight(str: string, len: number): string {
+  if (str.length >= len) return str.substring(0, len);
+  return str + ' '.repeat(len - str.length);
+}
+
+export function formatPublishPlanComparison(comp: PublishPlanComparison): string {
+  const lines: string[] = [];
+  const bold = chalk.bold;
+  const ok = chalk.green;
+  const err = chalk.red;
+  const warn = chalk.yellow;
+  const info = chalk.cyan;
+  const dim = chalk.gray;
+
+  const pubLabel = comp.hasPublishedVersion ? comp.publishedVersionLabel! : '(none)';
+  const draftLabel = comp.draftVersionLabel;
+  const colW = 34;
+
+  lines.push('');
+  lines.push(bold('┌' + '─'.repeat(colW) + '┬' + '─'.repeat(colW) + '┐'));
+  lines.push(bold('│' + padRight('  PUBLISHED VERSION', colW) + '│' + padRight('  DRAFT VERSION', colW) + '│'));
+  lines.push(bold('├' + '─'.repeat(colW) + '┼' + '─'.repeat(colW) + '┤'));
+  lines.push('│' + padRight(`  Label: ${pubLabel}`, colW) + '│' + padRight(`  Label: ${draftLabel}`, colW) + '│');
+  lines.push('│' + padRight(`  Status: ${comp.publishedStatus || '-'}`, colW) + '│' + padRight(`  Status: ${comp.draftStatus}`, colW) + '│');
+  if (comp.hasPublishedVersion) {
+    lines.push('│' + padRight(`  ID: ${(comp.publishedVersionId || '').substring(0, 16)}...`, colW) + '│' + padRight(`  ID: ${comp.draftVersionId.substring(0, 16)}...`, colW) + '│');
+  } else {
+    lines.push('│' + padRight(`  ID: -`, colW) + '│' + padRight(`  ID: ${comp.draftVersionId.substring(0, 16)}...`, colW) + '│');
+  }
+  lines.push('│' + padRight(`  Rule: ${comp.hasPublishedVersion ? comp.ruleVersion : '-'}`, colW) + '│' + padRight(`  Rule: ${comp.ruleVersion}`, colW) + '│');
+  lines.push(bold('└' + '─'.repeat(colW) + '┴' + '─'.repeat(colW) + '┘'));
+  lines.push('');
+
+  lines.push(bold('=== FILE DIFFS ==='));
+  lines.push(`${info('Added:')}   ${comp.addedFileCount} file(s)`);
+  lines.push(`${warn('Modified:')} ${comp.modifiedFileCount} file(s)`);
+  lines.push(`${err('Deleted:')}  ${comp.deletedFileCount} file(s)`);
+  lines.push(`${dim('Unchanged:')} ${comp.unchangedFileCount} file(s)`);
+  const sizeSign = comp.totalSizeDelta >= 0 ? '+' : '';
+  lines.push(`${info('Size delta:')} ${sizeSign}${comp.totalSizeDelta} bytes`);
+  lines.push('');
+
+  if (comp.fileDiffs.length > 0) {
+    comp.fileDiffs.forEach(diff => {
+      lines.push(formatFileDiffLine(diff));
+    });
+    lines.push('');
+  }
+
+  lines.push(bold('=== LICENSE COMPARISON ==='));
+  const lc = comp.licenseComparison;
+  if (lc.publishedLicenses.length > 0) {
+    lines.push(`${dim('Published:')} ${lc.publishedLicenses.join(', ') || '(none)'}`);
+  }
+  lines.push(`${info('Draft:')}     ${lc.draftLicenses.join(', ') || '(none)'}`);
+  if (lc.addedLicenses.length > 0) {
+    lines.push(`${ok('+ Added:')}   ${lc.addedLicenses.join(', ')}`);
+  }
+  if (lc.removedLicenses.length > 0) {
+    lines.push(`${err('- Removed:')} ${lc.removedLicenses.join(', ')}`);
+  }
+  if (lc.keptLicenses.length > 0) {
+    lines.push(`${dim('= Kept:')}    ${lc.keptLicenses.join(', ')}`);
+  }
+  lines.push(`${dim('License file:')} published=${lc.licenseFilePresentInPublished ? 'yes' : 'no'}, draft=${lc.licenseFilePresentInDraft ? 'yes' : 'no'}`);
+  if (!lc.allAllowed) {
+    lines.push(`${err('VIOLATING:')} ${lc.violatingLicenses.join(', ')}`);
+  } else {
+    lines.push(`${ok('All licenses allowed.')}`);
+  }
+  lines.push('');
+
+  lines.push(bold('=== VERSION & REPLACEMENT ==='));
+  lines.push(`${info('Candidate version:')}    ${comp.candidateVersionLabel}`);
+  lines.push(`${info('Next available:')}       ${comp.nextAvailableVersionLabel}`);
+  if (comp.willReplaceCurrentPublished) {
+    lines.push(`${warn('Will replace current:')} YES - ${comp.publishedVersionLabel} → archived`);
+  } else if (comp.hasPublishedVersion) {
+    lines.push(`${dim('Will replace current:')} NO (this is a submit, not publish)`);
+  } else {
+    lines.push(`${dim('Will replace current:')} FIRST PUBLICATION`);
+  }
+  lines.push('');
+
+  if (comp.conflict.hasConflict) {
+    lines.push(bold('=== CONFLICT DETECTED ==='));
+    lines.push(`${err('Conflict type:')} ${comp.conflict.conflictType}`);
+    lines.push('');
+    comp.conflict.conflictReasons.forEach(r => lines.push(`  ${err('→')} ${r}`));
+    lines.push('');
+    if (comp.conflict.conflictingVersionIds.length > 0) {
+      lines.push(`${dim('Conflicting version IDs:')} ${comp.conflict.conflictingVersionIds.join(', ')}`);
+    }
+    lines.push('');
+    lines.push(`${bold('Resolution hints:')}`);
+    comp.conflict.resolutionHints.forEach((h, i) => lines.push(`  ${i + 1}. ${h}`));
+    lines.push('');
+  }
+
+  if (comp.blockingPoints.length > 0) {
+    lines.push(bold('=== BLOCKING POINTS ==='));
+    comp.blockingPoints.forEach(bp => {
+      if (bp.startsWith('[LICENSE BLOCK]')) {
+        lines.push(`  ${err(bp)}`);
+      } else if (bp.startsWith('[CONFLICT]')) {
+        lines.push(`  ${err(bp)}`);
+      } else {
+        lines.push(`  ${warn(bp)}`);
+      }
+    });
+    lines.push('');
+  }
+
+  if (comp.suggestedNextSteps.length > 0) {
+    lines.push(bold('=== SUGGESTED NEXT STEPS ==='));
+    comp.suggestedNextSteps.forEach((s, i) => lines.push(`  ${i + 1}. ${s}`));
+    lines.push('');
+  }
+
+  lines.push(`${dim('Comparison generated at: ' + comp.comparisonGeneratedAt)}`);
+  lines.push('');
+
+  return lines.join('\n');
+}
+
+function formatFileDiffLine(diff: FileDiff): string {
+  const ok = chalk.green;
+  const err = chalk.red;
+  const warn = chalk.yellow;
+  const dim = chalk.gray;
+
+  let prefix = '';
+  let color: (s: string) => string = dim;
+
+  switch (diff.diffType) {
+    case 'added':
+      prefix = '[+]';
+      color = ok;
+      break;
+    case 'deleted':
+      prefix = '[-]';
+      color = err;
+      break;
+    case 'modified':
+      prefix = '[~]';
+      color = warn;
+      break;
+    case 'unchanged':
+      prefix = '[=]';
+      color = dim;
+      break;
+  }
+
+  let sizeInfo = '';
+  if (diff.diffType === 'added') {
+    sizeInfo = `(+${diff.newSize} B)`;
+  } else if (diff.diffType === 'deleted') {
+    sizeInfo = `(-${diff.oldSize} B)`;
+  } else if (diff.diffType === 'modified') {
+    const sign = diff.sizeDelta >= 0 ? '+' : '';
+    sizeInfo = `(${sign}${diff.sizeDelta} B)`;
+  }
+
+  let licInfo = '';
+  if (diff.licenseChanged) {
+    licInfo = `  license: ${diff.oldLicense || '(none)'} → ${diff.newLicense || '(none)'}`;
+  } else if (diff.newLicense) {
+    licInfo = `  [${diff.newLicense}]`;
+  }
+
+  return color(`  ${prefix} ${diff.path} ${sizeInfo}${licInfo}`);
+}
+
 export function printBlockReasons(r: DryRunResult): void {
   const err = chalk.red;
   const warn = chalk.yellow;
   const dim = chalk.gray;
+
+  if (r.comparison?.conflict?.hasConflict) {
+    console.error(err('CONFLICT DETECTED - Cannot proceed until resolved:'));
+    r.comparison.conflict.conflictReasons.forEach(re => console.error(err(`  -> ${re}`)));
+    console.log('');
+    console.log(dim('Resolution hints:'));
+    r.comparison.conflict.resolutionHints.forEach((h, i) => console.log(dim(`  ${i + 1}. ${h}`)));
+    console.log('');
+    console.log(dim(`Tip: Use \`dataset-cli status conflict\` for a detailed explanation.`));
+    return;
+  }
 
   if (r.blockedAt === 'hard_block') {
     console.error(err('HARD BLOCK: License rules violated - CANNOT be bypassed, even with --skip-verify or --force'));
@@ -164,5 +369,8 @@ export function printBlockReasons(r: DryRunResult): void {
 }
 
 export function formatBlockedAtExitMessage(r: DryRunResult): string {
+  if (r.comparison?.conflict?.hasConflict) {
+    return `Dry-run blocked by conflict: ${r.comparison.conflict.conflictType} (action=${r.action})`;
+  }
   return `Dry-run blocked at: ${stageLabels[r.blockedAt || 'none'] || r.blockedAt} (action=${r.action})`;
 }

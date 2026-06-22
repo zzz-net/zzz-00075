@@ -119,6 +119,92 @@ export interface DryRunStableSummary {
   totalSize: number;
 }
 
+export type FileDiffType = 'added' | 'deleted' | 'modified' | 'unchanged';
+
+export interface FileDiff {
+  path: string;
+  diffType: FileDiffType;
+  sizeDelta: number;
+  oldSize?: number;
+  newSize?: number;
+  oldSha256?: string;
+  newSha256?: string;
+  oldLicense?: string;
+  newLicense?: string;
+  licenseChanged: boolean;
+}
+
+export interface LicenseComparison {
+  draftLicenses: string[];
+  publishedLicenses: string[];
+  addedLicenses: string[];
+  removedLicenses: string[];
+  keptLicenses: string[];
+  allAllowed: boolean;
+  violatingLicenses: string[];
+  licenseFilePresentInDraft: boolean;
+  licenseFilePresentInPublished: boolean;
+}
+
+export type ConflictType = 'version_label_conflict' | 'multiple_pending' | 'rule_version_mismatch' | 'replaced_version_stale' | null;
+
+export interface ConflictInfo {
+  hasConflict: boolean;
+  conflictType: ConflictType;
+  conflictReasons: string[];
+  resolutionHints: string[];
+  conflictingVersionIds: string[];
+}
+
+export interface PublishPlanComparison {
+  draftVersionLabel: string;
+  draftVersionId: string;
+  draftStatus: VersionStatus;
+  publishedVersionLabel: string | null;
+  publishedVersionId: string | null;
+  publishedStatus: VersionStatus | null;
+  hasPublishedVersion: boolean;
+  fileDiffs: FileDiff[];
+  filesAdded: string[];
+  filesDeleted: string[];
+  filesModified: string[];
+  filesUnchanged: string[];
+  addedFileCount: number;
+  deletedFileCount: number;
+  modifiedFileCount: number;
+  unchangedFileCount: number;
+  totalSizeDelta: number;
+  licenseComparison: LicenseComparison;
+  candidateVersionLabel: string;
+  nextAvailableVersionLabel: string;
+  willReplaceCurrentPublished: boolean;
+  conflict: ConflictInfo;
+  blockingPoints: string[];
+  suggestedNextSteps: string[];
+  comparisonGeneratedAt: string;
+  ruleVersion: string;
+}
+
+export interface DryRunStableSummary {
+  targetVersionLabel: string;
+  targetVersionId: string;
+  targetVersionStatus: string;
+  blockStage: string;
+  blockStageLabel: string;
+  willReplaceCurrentPublished: boolean;
+  currentPublishedVersionLabel: string | null;
+  currentPublishedVersionId: string | null;
+  suggestedNextCommand: string;
+  ruleVersion: string;
+  fileCount: number;
+  totalSize: number;
+  addedFileCount: number;
+  deletedFileCount: number;
+  modifiedFileCount: number;
+  hasConflict: boolean;
+  conflictType: string | null;
+}
+
 export interface DryRunResult {
   action: DryRunAction;
   timestamp: string;
@@ -145,5 +231,6 @@ export interface DryRunResult {
   nextSteps: string[];
   skipVerifyUsed: boolean;
   forceUsed: boolean;
+  comparison: PublishPlanComparison;
   summary: DryRunStableSummary;
 }

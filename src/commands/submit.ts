@@ -3,7 +3,7 @@ import chalk from 'chalk';
 import { FileStorage } from '../storage/FileStorage';
 import { DryRunEngine } from '../services/DryRunEngine';
 import { DryRunResult } from '../types';
-import { printBlockReasons, formatSummaryBox } from '../services/DryRunSummary';
+import { printBlockReasons, formatSummaryBox, formatPublishPlanComparison } from '../services/DryRunSummary';
 
 export function registerSubmitCommand(program: Command, storage: FileStorage): void {
   program
@@ -12,6 +12,7 @@ export function registerSubmitCommand(program: Command, storage: FileStorage): v
     .option('--by <user>', 'User submitting the version', 'system')
     .option('--skip-verify', 'Skip hash/size verification (license HARD BLOCK still enforced)')
     .option('--dry-run', 'Preview what submit would do without changing state (alias for dry-run submit)')
+    .option('--show-compare', 'Show the publish plan comparison view even for real submit')
     .action(async (versionId: string | undefined, options: any) => {
       try {
         let state = storage.loadState();
@@ -43,6 +44,7 @@ export function registerSubmitCommand(program: Command, storage: FileStorage): v
 
         if (options.dryRun) {
           console.log(formatSummaryBox(precheck));
+          console.log(formatPublishPlanComparison(precheck.comparison));
           console.log(chalk.gray('(This was a --dry-run preview. No state was changed.)'));
           if (precheck.blockedAt !== 'none') {
             process.exit(1);
@@ -53,8 +55,21 @@ export function registerSubmitCommand(program: Command, storage: FileStorage): v
         if (precheck.blockedAt !== 'none') {
           printBlockReasons(precheck);
           console.log('');
-          console.log(chalk.yellow('Tip: Run `dataset-cli dry-run submit` for a detailed pre-flight report before submitting.'));
+          console.log(chalk.yellow('Tip: Run `dataset-cli dry-run submit` for a detailed pre-flight report with side-by-side comparison.'));
           process.exit(1);
+        }
+
+        if (options.showCompare) {
+          console.log(formatPublishPlanComparison(precheck.comparison));
+        }
+
+        const comp = precheck.comparison;
+        if (comp.addedFileCount > 0 || comp.deletedFileCount > 0 || comp.modifiedFileCount > 0) {
+          const deltaSign = comp.totalSizeDelta >= 0 ? '+' : '';
+          console.log(chalk.cyan(
+            `Changes detected: +${comp.addedFileCount} added, -${comp.deletedFileCount} deleted, ` +
+            `~${comp.modifiedFileCount} modified (${deltaSign}${comp.totalSizeDelta} bytes)`
+          ));
         }
 
         if (!options.skipVerify) {
@@ -80,9 +95,12 @@ export function registerSubmitCommand(program: Command, storage: FileStorage): v
         console.log(chalk.gray(`  Status: ${updatedVersion.status}`));
         console.log(chalk.gray(`  Submitted by: ${options.by}`));
         console.log(chalk.gray(`  Files: ${updatedVersion.files.length}`));
+        if (comp.hasPublishedVersion) {
+          console.log(chalk.gray(`  Compared against published: ${comp.publishedVersionLabel}`));
+        }
         console.log('');
         console.log(chalk.yellow('Recommended next steps:'));
-        console.log(`  1. ${chalk.cyan('dataset-cli dry-run publish --approver <name>')} - Pre-check publish readiness`);
+        console.log(`  1. ${chalk.cyan('dataset-cli dry-run publish --approver <name>')} - Pre-check publish readiness with comparison`);
         console.log(`  2. ${chalk.cyan('dataset-cli publish --approver <name>')} - Approve and publish`);
 
       } catch (error) {

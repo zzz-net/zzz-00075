@@ -1,14 +1,9 @@
 {
   "version": "1.0",
-  "datasetVersion": "v1782095228051-14e2198b",
-  "generatedAt": "2026-06-22T02:27:15.185Z",
-  "ruleVersion": "v4",
+  "datasetVersion": "v1782112511287-d3e5bcf5",
+  "generatedAt": "2026-06-22T07:15:40.946Z",
+  "ruleVersion": "v2",
   "files": [
-    {
-      "path": "images/cat.jpg",
-      "size": 26,
-      "sha256": "d60b0b4f053d3d3ceadf1f755c3b38aaa861f08431bbc9baf861fae5d88ff180"
-    },
     {
       "path": "images/dog.jpg",
       "size": 26,
@@ -36,13 +31,13 @@
       "sha256": "30b81152c4764460555b9f89ae7b8871642a578edd96c7b08275b6a81f82067f"
     }
   ],
-  "totalSize": 1379,
-  "fileCount": 6,
+  "totalSize": 1353,
+  "fileCount": 5,
   "approval": {
-    "approver": "approverA",
-    "comment": "baseline publish",
-    "approvedAt": "2026-06-22T02:27:15.185Z",
-    "ruleVersion": "v4"
+    "approver": "reviewer",
+    "comment": "review success chain",
+    "approvedAt": "2026-06-22T07:15:40.946Z",
+    "ruleVersion": "v2"
   },
-  "signature": "dba9da842d36a4049a514a2d169ce6ab1cdab3ac75b7e2f9acdb06715b51d29e"
+  "signature": "b991c24d9bd30c69e501cdac1968f1f0b8108901d234c2274cbbb011876ccecd"
 }

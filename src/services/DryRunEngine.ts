@@ -1,8 +1,15 @@
 import { CLIState, DatasetVersion, DryRunResult, DryRunAction, DryRunBlockStage, ValidationRule } from '../types';
 import { Validator } from './Validator';
 import { buildStableSummary } from './DryRunSummary';
+import { PublishPlanComparator } from './PublishPlanComparator';
 
 export class DryRunEngine {
+  private comparator: PublishPlanComparator;
+
+  constructor() {
+    this.comparator = new PublishPlanComparator();
+  }
+
   evaluate(
     action: DryRunAction,
     state: CLIState,
@@ -14,6 +21,8 @@ export class DryRunEngine {
     const force = !!options.force;
     const now = new Date().toISOString();
 
+    const comparison = this.comparator.compare(action, state, targetVersion, state.ruleConfig);
+
     const currentPubId = state.currentVersion;
     const currentPub = currentPubId ? state.versions[currentPubId] : null;
 
@@ -22,6 +31,11 @@ export class DryRunEngine {
 
     const blockReasons: string[] = [];
     let blockedAt: DryRunBlockStage = 'none';
+
+    if (comparison.conflict.hasConflict) {
+      blockedAt = 'status_check';
+      comparison.conflict.conflictReasons.forEach(r => blockReasons.push(r));
+    }
 
     if (action === 'submit' && targetVersion.status !== 'draft') {
       blockedAt = 'status_check';
@@ -86,7 +100,9 @@ export class DryRunEngine {
       }
     }
 
-    const nextSteps = this.buildNextSteps(action, blockedAt, canSubmit, canPublish, hardBlock, verifyResult, force, skipVerify);
+    const nextSteps = comparison.conflict.hasConflict
+      ? comparison.suggestedNextSteps
+      : this.buildNextSteps(action, blockedAt, canSubmit, canPublish, hardBlock, verifyResult, force, skipVerify);
 
     const rulesSnapshot: ValidationRule[] = state.ruleConfig.rules.map(r => ({ ...r, config: { ...r.config } }));
 
@@ -116,6 +132,7 @@ export class DryRunEngine {
       nextSteps,
       skipVerifyUsed: skipVerify,
       forceUsed: force,
+      comparison,
       summary: {
         targetVersionLabel: '',
         targetVersionId: '',
@@ -128,7 +145,12 @@ export class DryRunEngine {
         suggestedNextCommand: '',
         ruleVersion: '',
         fileCount: 0,
-        totalSize: 0
+        totalSize: 0,
+        addedFileCount: 0,
+        deletedFileCount: 0,
+        modifiedFileCount: 0,
+        hasConflict: false,
+        conflictType: null
       }
     };
 

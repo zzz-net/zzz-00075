@@ -1,0 +1,249 @@
+{
+  "action": "publish",
+  "timestamp": "2026-06-22T07:15:35.984Z",
+  "versionId": "v1782112511287-d3e5bcf5",
+  "versionLabel": "v1.0.0",
+  "candidateVersion": "v1.0.0",
+  "nextAvailableVersion": "v2.0.0",
+  "currentStatus": "pending_approval",
+  "ruleVersion": "v2",
+  "rulesSnapshot": [
+    {
+      "id": "rule-hash-1",
+      "type": "hash",
+      "enabled": true,
+      "config": {
+        "hashAlgorithm": "sha256"
+      }
+    },
+    {
+      "id": "rule-size-1",
+      "type": "size",
+      "enabled": true,
+      "config": {
+        "minSize": 0,
+        "maxSize": 1073741824
+      }
+    },
+    {
+      "id": "rule-license-1",
+      "type": "license",
+      "enabled": true,
+      "config": {
+        "allowedLicenses": [
+          "MIT",
+          "Apache-2.0"
+        ],
+        "requiredLicenseFile": true
+      }
+    }
+  ],
+  "files": [
+    {
+      "path": "images/dog.jpg",
+      "size": 26,
+      "sha256": "f875c1008323b34154c0742c989236bf6cff20f11894f769a2600a9f9fec7dee"
+    },
+    {
+      "path": "labels/train.csv",
+      "size": 39,
+      "sha256": "c41360ff4121a5e374df845fa340b9de341e1acb5cf435af3328a1a8ca4076f1"
+    },
+    {
+      "path": "labels/val.csv",
+      "size": 26,
+      "sha256": "6a82759f72417d318e6cf1034b1af12aa8ecc02641e6b0dcb203e82c39cd4f35"
+    },
+    {
+      "path": "LICENSE",
+      "size": 1093,
+      "sha256": "7acaa70b4974c791566bd5b9279bb8b8b312bf14aec16144e2ea354f655cf6ba",
+      "license": "MIT"
+    },
+    {
+      "path": "README.md",
+      "size": 169,
+      "sha256": "30b81152c4764460555b9f89ae7b8871642a578edd96c7b08275b6a81f82067f"
+    }
+  ],
+  "fileCount": 5,
+  "totalSize": 1353,
+  "currentPublishedVersionId": null,
+  "currentPublishedVersionLabel": null,
+  "currentPublishedWouldBeReplaced": false,
+  "previousVersionId": null,
+  "verifyResult": {
+    "passed": true,
+    "errors": [],
+    "warnings": [],
+    "fileResults": [
+      {
+        "filePath": "images/dog.jpg",
+        "hashOk": true,
+        "sizeOk": true,
+        "licenseOk": true,
+        "errors": []
+      },
+      {
+        "filePath": "labels/train.csv",
+        "hashOk": true,
+        "sizeOk": true,
+        "licenseOk": true,
+        "errors": []
+      },
+      {
+        "filePath": "labels/val.csv",
+        "hashOk": true,
+        "sizeOk": true,
+        "licenseOk": true,
+        "errors": []
+      },
+      {
+        "filePath": "LICENSE",
+        "hashOk": true,
+        "sizeOk": true,
+        "licenseOk": true,
+        "errors": []
+      },
+      {
+        "filePath": "README.md",
+        "hashOk": true,
+        "sizeOk": true,
+        "licenseOk": true,
+        "errors": []
+      }
+    ]
+  },
+  "hardBlock": {
+    "blocked": false,
+    "reasons": []
+  },
+  "canSubmit": false,
+  "canPublish": true,
+  "blockedAt": "none",
+  "blockReasons": [],
+  "nextSteps": [
+    "This version can be published. Run `dataset-cli publish --approver <name>` to proceed.",
+    "After publishing, run `dataset-cli export` to export the manifest."
+  ],
+  "skipVerifyUsed": false,
+  "forceUsed": false,
+  "comparison": {
+    "draftVersionLabel": "v1.0.0",
+    "draftVersionId": "v1782112511287-d3e5bcf5",
+    "draftStatus": "pending_approval",
+    "publishedVersionLabel": null,
+    "publishedVersionId": null,
+    "publishedStatus": null,
+    "hasPublishedVersion": false,
+    "fileDiffs": [
+      {
+        "path": "images/dog.jpg",
+        "diffType": "added",
+        "sizeDelta": 26,
+        "newSize": 26,
+        "newSha256": "f875c1008323b34154c0742c989236bf6cff20f11894f769a2600a9f9fec7dee",
+        "licenseChanged": false
+      },
+      {
+        "path": "labels/train.csv",
+        "diffType": "added",
+        "sizeDelta": 39,
+        "newSize": 39,
+        "newSha256": "c41360ff4121a5e374df845fa340b9de341e1acb5cf435af3328a1a8ca4076f1",
+        "licenseChanged": false
+      },
+      {
+        "path": "labels/val.csv",
+        "diffType": "added",
+        "sizeDelta": 26,
+        "newSize": 26,
+        "newSha256": "6a82759f72417d318e6cf1034b1af12aa8ecc02641e6b0dcb203e82c39cd4f35",
+        "licenseChanged": false
+      },
+      {
+        "path": "LICENSE",
+        "diffType": "added",
+        "sizeDelta": 1093,
+        "newSize": 1093,
+        "newSha256": "7acaa70b4974c791566bd5b9279bb8b8b312bf14aec16144e2ea354f655cf6ba",
+        "newLicense": "MIT",
+        "licenseChanged": false
+      },
+      {
+        "path": "README.md",
+        "diffType": "added",
+        "sizeDelta": 169,
+        "newSize": 169,
+        "newSha256": "30b81152c4764460555b9f89ae7b8871642a578edd96c7b08275b6a81f82067f",
+        "licenseChanged": false
+      }
+    ],
+    "filesAdded": [
+      "images/dog.jpg",
+      "labels/train.csv",
+      "labels/val.csv",
+      "LICENSE",
+      "README.md"
+    ],
+    "filesDeleted": [],
+    "filesModified": [],
+    "filesUnchanged": [],
+    "addedFileCount": 5,
+    "deletedFileCount": 0,
+    "modifiedFileCount": 0,
+    "unchangedFileCount": 0,
+    "totalSizeDelta": 1353,
+    "licenseComparison": {
+      "draftLicenses": [
+        "MIT"
+      ],
+      "publishedLicenses": [],
+      "addedLicenses": [
+        "MIT"
+      ],
+      "removedLicenses": [],
+      "keptLicenses": [],
+      "allAllowed": true,
+      "violatingLicenses": [],
+      "licenseFilePresentInDraft": true,
+      "licenseFilePresentInPublished": false
+    },
+    "candidateVersionLabel": "v1.0.0",
+    "nextAvailableVersionLabel": "v2.0.0",
+    "willReplaceCurrentPublished": false,
+    "conflict": {
+      "hasConflict": false,
+      "conflictType": null,
+      "conflictReasons": [],
+      "resolutionHints": [],
+      "conflictingVersionIds": []
+    },
+    "blockingPoints": [],
+    "suggestedNextSteps": [
+      "Run `dataset-cli publish --approver <name>` to publish this version.",
+      "After publishing, run `dataset-cli export --output <path>` to export the manifest."
+    ],
+    "comparisonGeneratedAt": "2026-06-22T07:15:36.008Z",
+    "ruleVersion": "v2"
+  },
+  "summary": {
+    "targetVersionLabel": "v1.0.0",
+    "targetVersionId": "v1782112511287-d3e5bcf5",
+    "targetVersionStatus": "pending_approval",
+    "blockStage": "none",
+    "blockStageLabel": "Not blocked",
+    "willReplaceCurrentPublished": false,
+    "currentPublishedVersionLabel": null,
+    "currentPublishedVersionId": null,
+    "suggestedNextCommand": "dataset-cli publish --approver <name>",
+    "ruleVersion": "v2",
+    "fileCount": 5,
+    "totalSize": 1353,
+    "addedFileCount": 5,
+    "deletedFileCount": 0,
+    "modifiedFileCount": 0,
+    "hasConflict": false,
+    "conflictType": null
+  }
+}

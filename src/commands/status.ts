@@ -1,7 +1,9 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import { FileStorage } from '../storage/FileStorage';
-import { VersionStatus } from '../types';
+import { VersionStatus, DryRunAction } from '../types';
+import { PublishPlanComparator } from '../services/PublishPlanComparator';
+import { formatPublishPlanComparison } from '../services/DryRunSummary';
 
 const statusColors: Record<VersionStatus, (str: string) => string> = {
   draft: chalk.gray,
@@ -191,5 +193,133 @@ export function registerStatusCommand(program: Command, storage: FileStorage): v
         console.log('');
         console.log(chalk.green(`Current published: ${current.version}`));
       }
+    });
+
+  status
+    .command('conflict [versionId]')
+    .description('Explain why a version cannot be submitted/published directly, showing conflicts and resolution hints')
+    .option('--action <action>', 'Action to check: submit or publish', 'submit')
+    .action(async (versionId: string | undefined, options: any) => {
+      const state = storage.loadState();
+      const err = chalk.red;
+      const ok = chalk.green;
+      const warn = chalk.yellow;
+      const info = chalk.cyan;
+      const dim = chalk.gray;
+      const bold = chalk.bold;
+
+      let targetVersion;
+      if (versionId) {
+        targetVersion = state.versions[versionId];
+        if (!targetVersion) {
+          console.error(err(`Version not found: ${versionId}`));
+          console.log(dim('Tip: Use `dataset-cli status all` to list all versions.'));
+          process.exit(1);
+        }
+      } else {
+        const drafts = storage.getVersionsByStatus(state, 'draft');
+        const pending = storage.getVersionsByStatus(state, 'pending_approval');
+        
+        if (options.action === 'publish' && pending.length > 0) {
+          targetVersion = pending[0];
+        } else if (drafts.length > 0) {
+          targetVersion = drafts[0];
+        } else if (pending.length > 0) {
+          targetVersion = pending[0];
+        } else {
+          console.error(err('No draft or pending versions found.'));
+          console.log(dim('Run `dataset-cli scan <directory>` first to create a draft version.'));
+          process.exit(1);
+        }
+        console.log(dim(`Using latest applicable version: ${targetVersion.version} (${targetVersion.id})`));
+      }
+
+      const action: DryRunAction = (options.action === 'publish') ? 'publish' : 'submit';
+      const comparator = new PublishPlanComparator();
+      const comparison = comparator.compare(action, state, targetVersion, state.ruleConfig);
+
+      console.log(bold('========================================'));
+      console.log(bold(`  CONFLICT ANALYSIS: ${action.toUpperCase()}`));
+      console.log(bold('========================================'));
+      console.log('');
+
+      console.log(formatPublishPlanComparison(comparison));
+
+      if (!comparison.conflict.hasConflict) {
+        console.log(ok('✓ No conflicts detected for this version.'));
+        if (action === 'submit') {
+          console.log(dim('This version can be submitted via `dataset-cli submit`'));
+        } else {
+          console.log(dim('This version can be published via `dataset-cli publish --approver <name>`'));
+        }
+      } else {
+        console.log(bold('========================================'));
+        console.log(bold('  CONFLICT SUMMARY'));
+        console.log(bold('========================================'));
+        console.log('');
+        console.log(`${err('Conflict type:')} ${comparison.conflict.conflictType}`);
+        console.log('');
+        console.log(`${bold('Reasons:')}`);
+        comparison.conflict.conflictReasons.forEach((r, i) => {
+          console.log(`  ${i + 1}. ${err(r)}`);
+        });
+        console.log('');
+        if (comparison.conflict.conflictingVersionIds.length > 0) {
+          console.log(`${info('Conflicting versions:')}`);
+          comparison.conflict.conflictingVersionIds.forEach(id => {
+            const v = state.versions[id];
+            if (v) {
+              console.log(`  - ${v.version} (${v.status}) [${id.substring(0, 16)}...]`);
+            } else {
+              console.log(`  - ${id.substring(0, 16)}...`);
+            }
+          });
+          console.log('');
+        }
+        console.log(`${bold('How to resolve:')}`);
+        comparison.conflict.resolutionHints.forEach((h, i) => {
+          console.log(`  ${i + 1}. ${warn(h)}`);
+        });
+        console.log('');
+        console.log(dim(`Tip: Run \`dataset-cli dry-run ${action}\` for a full pre-flight report.`));
+      }
+    });
+
+  status
+    .command('compare [versionId]')
+    .description('Show side-by-side comparison of a draft/pending version vs the current published version')
+    .option('--action <action>', 'Context of comparison: submit or publish', 'submit')
+    .action(async (versionId: string | undefined, options: any) => {
+      const state = storage.loadState();
+      const dim = chalk.gray;
+
+      let targetVersion;
+      if (versionId) {
+        targetVersion = state.versions[versionId];
+        if (!targetVersion) {
+          console.error(chalk.red(`Version not found: ${versionId}`));
+          console.log(dim('Tip: Use `dataset-cli status all` to list all versions.'));
+          process.exit(1);
+        }
+      } else {
+        const drafts = storage.getVersionsByStatus(state, 'draft');
+        const pending = storage.getVersionsByStatus(state, 'pending_approval');
+        if (drafts.length > 0) {
+          targetVersion = drafts[0];
+        } else if (pending.length > 0) {
+          targetVersion = pending[0];
+        } else {
+          console.error(chalk.red('No draft or pending versions found to compare.'));
+          console.log(dim('Run `dataset-cli scan <directory>` first to create a draft version.'));
+          process.exit(1);
+        }
+        console.log(dim(`Comparing latest version: ${targetVersion.version} (${targetVersion.id})`));
+      }
+
+      const action: DryRunAction = (options.action === 'publish') ? 'publish' : 'submit';
+      const comparator = new PublishPlanComparator();
+      const comparison = comparator.compare(action, state, targetVersion, state.ruleConfig);
+
+      console.log(formatPublishPlanComparison(comparison));
     });
 }
