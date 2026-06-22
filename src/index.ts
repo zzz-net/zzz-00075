@@ -12,6 +12,7 @@ import { registerRollbackCommand } from './commands/rollback';
 import { registerExportCommand } from './commands/export';
 import { registerStatusCommand } from './commands/status';
 import { registerHistoryCommand } from './commands/history';
+import { registerDryRunCommand } from './commands/dryrun';
 
 const program = new Command();
 const storage = new FileStorage(process.cwd());
@@ -53,6 +54,7 @@ registerRollbackCommand(program, storage);
 registerExportCommand(program, storage);
 registerStatusCommand(program, storage);
 registerHistoryCommand(program, storage);
+registerDryRunCommand(program, storage);
 
 program.parseAsync(process.argv).catch((error) => {
   console.error(chalk.red(`Fatal error: ${error instanceof Error ? error.message : error}`));

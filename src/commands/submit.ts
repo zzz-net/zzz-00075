@@ -1,14 +1,30 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import { FileStorage } from '../storage/FileStorage';
-import { Validator } from '../services/Validator';
+import { DryRunEngine } from '../services/DryRunEngine';
+import { DryRunResult } from '../types';
+
+function printDryRunBlock(r: DryRunResult): void {
+  if (r.blockedAt === 'hard_block') {
+    console.error(chalk.red('HARD BLOCK: License rules violated - CANNOT be bypassed, even with --skip-verify'));
+    r.hardBlock.reasons.forEach(re => console.error(chalk.red(`  -> ${re}`)));
+    console.log(chalk.gray('Fix license issues before submitting.'));
+  } else if (r.blockedAt === 'verification') {
+    console.error(chalk.red('Verification failed. Cannot submit.'));
+    r.verifyResult.errors.forEach(err => console.log(`  ${chalk.red('->')} ${err}`));
+    console.log(chalk.gray('Fix errors or use --skip-verify to bypass hash/size checks (license rules CANNOT be bypassed)'));
+  } else if (r.blockedAt === 'status_check') {
+    console.error(chalk.red(`Cannot submit version with status: ${r.currentStatus}`));
+    console.log(chalk.gray('Only draft versions can be submitted for approval'));
+  }
+}
 
 export function registerSubmitCommand(program: Command, storage: FileStorage): void {
   program
     .command('submit [versionId]')
     .description('Submit a draft version for approval')
     .option('--by <user>', 'User submitting the version', 'system')
-    .option('--skip-verify', 'Skip verification before submitting (not recommended)')
+    .option('--skip-verify', 'Skip hash/size verification (license HARD BLOCK still enforced)')
     .action(async (versionId: string | undefined, options: any) => {
       try {
         let state = storage.loadState();
@@ -30,39 +46,22 @@ export function registerSubmitCommand(program: Command, storage: FileStorage): v
           console.log(chalk.gray(`Using latest draft: ${targetVersion.version} (${targetVersion.id})`));
         }
 
-        if (targetVersion.status !== 'draft') {
-          console.error(chalk.red(`Cannot submit version with status: ${targetVersion.status}`));
-          console.log(chalk.gray('Only draft versions can be submitted for approval'));
+        const engine = new DryRunEngine();
+        const precheck = engine.evaluate('submit', state, targetVersion, {
+          skipVerify: !!options.skipVerify
+        });
+
+        if (precheck.blockedAt !== 'none') {
+          printDryRunBlock(precheck);
           process.exit(1);
         }
 
-        const validator = new Validator(state.ruleConfig);
-        
         if (!options.skipVerify) {
-          console.log(chalk.blue('Running verification before submit...'));
-          const result = validator.verify(targetVersion.scanDir, targetVersion.files, true);
-          
-          if (!result.passed) {
-            console.error(chalk.red('✗ Verification failed. Cannot submit.'));
-            console.log(chalk.gray('Fix verification errors or use --skip-verify to bypass hash/size checks (license rules CANNOT be bypassed)'));
-            process.exit(1);
-          }
-          console.log(chalk.green('✓ Verification passed'));
-          console.log('');
+          console.log(chalk.green('Verification passed'));
         } else {
-          console.log(chalk.yellow('⚠ --skip-verify used, but license HARD BLOCK check still enforced'));
-          console.log(chalk.gray('  Checking license compliance is always enforced regardless of --skip-verify'));
-          const licenseCheck = validator.verify(targetVersion.scanDir, targetVersion.files, false);
-          const hardBlock = validator.hasHardBlockErrors(licenseCheck);
-          if (hardBlock.blocked) {
-            console.error(chalk.red('✗ HARD BLOCK: License rules violated — CANNOT be bypassed, even with --skip-verify'));
-            hardBlock.reasons.forEach(r => console.error(chalk.red(`  → ${r}`)));
-            console.log(chalk.gray('Fix license issues before submitting.'));
-            process.exit(1);
-          }
-          console.log(chalk.green('✓ License hard block check passed'));
-          console.log('');
+          console.log(chalk.green('License hard block check passed (--skip-verify bypassed hash/size only)'));
         }
+        console.log('');
 
         state = storage.updateVersionStatus(
           state,
@@ -75,7 +74,7 @@ export function registerSubmitCommand(program: Command, storage: FileStorage): v
 
         const updatedVersion = state.versions[targetVersion.id];
 
-        console.log(chalk.green(`✓ Version submitted for approval: ${updatedVersion.version}`));
+        console.log(chalk.green(`Version submitted for approval: ${updatedVersion.version}`));
         console.log(chalk.gray(`  Version ID: ${updatedVersion.id}`));
         console.log(chalk.gray(`  Status: ${updatedVersion.status}`));
         console.log(chalk.gray(`  Submitted by: ${options.by}`));

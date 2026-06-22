@@ -100,3 +100,33 @@ export interface Manifest {
   approval: ApprovalInfo;
   signature?: string;
 }
+
+export type DryRunAction = 'submit' | 'publish';
+export type DryRunBlockStage = 'none' | 'status_check' | 'hard_block' | 'verification' | null;
+
+export interface DryRunResult {
+  action: DryRunAction;
+  timestamp: string;
+  versionId: string;
+  versionLabel: string;
+  candidateVersion: string;
+  currentStatus: VersionStatus;
+  ruleVersion: string;
+  rulesSnapshot: ValidationRule[];
+  files: FileEntry[];
+  fileCount: number;
+  totalSize: number;
+  currentPublishedVersionId: string | null;
+  currentPublishedVersionLabel: string | null;
+  currentPublishedWouldBeReplaced: boolean;
+  previousVersionId: string | null;
+  verifyResult: VerifyResult;
+  hardBlock: { blocked: boolean; reasons: string[] };
+  canSubmit: boolean;
+  canPublish: boolean;
+  blockedAt: DryRunBlockStage;
+  blockReasons: string[];
+  nextSteps: string[];
+  skipVerifyUsed: boolean;
+  forceUsed: boolean;
+}
