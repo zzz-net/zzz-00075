@@ -118,29 +118,44 @@ export class Validator {
     };
   }
 
-  canPublish(verifyResult: VerifyResult): boolean {
+  hasHardBlockErrors(verifyResult: VerifyResult): { blocked: boolean; reasons: string[] } {
+    const reasons: string[] = [];
     const licenseRule = this.ruleConfig.rules.find(r => r.type === 'license' && r.enabled);
     if (licenseRule) {
       const licenseErrors = verifyResult.fileResults.filter(r => !r.licenseOk);
       if (licenseErrors.length > 0) {
-        return false;
+        licenseErrors.forEach(r => {
+          reasons.push(`[HARD BLOCK] License check failed for ${r.filePath}: ${r.errors.join('; ')}`);
+        });
+      }
+      if (licenseRule.config.requiredLicenseFile) {
+        const hasLicenseFile = verifyResult.fileResults.some(r => 
+          r.filePath.toLowerCase().includes('license') || 
+          r.filePath.toLowerCase().includes('licence')
+        );
+        const noLicenseErr = verifyResult.errors.find(e => e.includes('License file is required'));
+        if (!hasLicenseFile || noLicenseErr) {
+          reasons.push('[HARD BLOCK] Required license file is missing');
+        }
       }
     }
+    return { blocked: reasons.length > 0, reasons };
+  }
+
+  canPublish(verifyResult: VerifyResult): boolean {
+    const hardBlock = this.hasHardBlockErrors(verifyResult);
+    if (hardBlock.blocked) return false;
 
     const hashRule = this.ruleConfig.rules.find(r => r.type === 'hash' && r.enabled);
     if (hashRule) {
       const hashErrors = verifyResult.fileResults.filter(r => !r.hashOk);
-      if (hashErrors.length > 0) {
-        return false;
-      }
+      if (hashErrors.length > 0) return false;
     }
 
     const sizeRule = this.ruleConfig.rules.find(r => r.type === 'size' && r.enabled);
     if (sizeRule) {
       const sizeErrors = verifyResult.fileResults.filter(r => !r.sizeOk);
-      if (sizeErrors.length > 0) {
-        return false;
-      }
+      if (sizeErrors.length > 0) return false;
     }
 
     return verifyResult.passed;

@@ -44,18 +44,29 @@ export function registerPublishCommand(program: Command, storage: FileStorage): 
         console.log(chalk.gray(`Comment: ${options.comment}`));
         console.log('');
 
+        const validator = new Validator(state.ruleConfig);
         let canPublish = true;
+        let hardBlockReasons: string[] = [];
+        
         if (!options.skipVerify) {
           console.log(chalk.blue('Running verification...'));
-          const validator = new Validator(state.ruleConfig);
           const result = validator.verify(targetVersion.scanDir, targetVersion.files, true);
-          
+          const hardBlock = validator.hasHardBlockErrors(result);
+          hardBlockReasons = hardBlock.reasons;
           canPublish = validator.canPublish(result);
+          
+          if (hardBlock.blocked) {
+            console.error(chalk.red('✗ HARD BLOCK: License rules violated — CANNOT be bypassed, even with --force'));
+            hardBlock.reasons.forEach(r => console.error(chalk.red(`  → ${r}`)));
+            console.log('');
+            console.log(chalk.gray('Fix license issues before publishing. --force is NOT permitted for license violations.'));
+            process.exit(1);
+          }
           
           if (!result.passed) {
             if (options.force) {
-              console.log(chalk.yellow('⚠ Verification failed, but --force was specified. Publishing anyway...'));
-              console.log(chalk.red('  This is NOT recommended! The published manifest may be invalid.'));
+              console.log(chalk.yellow('⚠ Hash/size verification failed, but --force was specified. Publishing anyway...'));
+              console.log(chalk.yellow('  Note: License HARD BLOCK rules still passed; only hash/size issues were overridden.'));
               canPublish = true;
             } else {
               console.error(chalk.red('✗ Verification failed. Cannot publish.'));
@@ -64,17 +75,34 @@ export function registerPublishCommand(program: Command, storage: FileStorage): 
                 console.log(`  ${chalk.red('→')} ${err}`);
               });
               console.log('');
-              console.log(chalk.gray('Fix errors and retry, or use --force to override (not recommended)'));
+              console.log(chalk.gray('Fix errors and retry, or use --force to override hash/size (license rules CANNOT be overridden)'));
               process.exit(1);
             }
           } else {
             console.log(chalk.green('✓ Verification passed'));
           }
           console.log('');
+        } else {
+          console.log(chalk.yellow('⚠ --skip-verify used, but license HARD BLOCK check still enforced'));
+          console.log(chalk.gray('  Checking license compliance is always enforced regardless of --skip-verify'));
+          const licenseCheck = validator.verify(targetVersion.scanDir, targetVersion.files, false);
+          const hardBlock = validator.hasHardBlockErrors(licenseCheck);
+          hardBlockReasons = hardBlock.reasons;
+          if (hardBlock.blocked) {
+            console.error(chalk.red('✗ HARD BLOCK: License rules violated — CANNOT be bypassed, even with --skip-verify'));
+            hardBlock.reasons.forEach(r => console.error(chalk.red(`  → ${r}`)));
+            process.exit(1);
+          }
+          console.log(chalk.green('✓ License hard block check passed'));
+          console.log('');
         }
 
         if (!canPublish && !options.force) {
           console.error(chalk.red('✗ Cannot publish - validation rules not satisfied'));
+          if (hardBlockReasons.length > 0) {
+            console.error(chalk.red('  Hard block reasons:'));
+            hardBlockReasons.forEach(r => console.error(chalk.red(`    → ${r}`)));
+          }
           process.exit(1);
         }
 

@@ -36,17 +36,31 @@ export function registerSubmitCommand(program: Command, storage: FileStorage): v
           process.exit(1);
         }
 
+        const validator = new Validator(state.ruleConfig);
+        
         if (!options.skipVerify) {
           console.log(chalk.blue('Running verification before submit...'));
-          const validator = new Validator(state.ruleConfig);
           const result = validator.verify(targetVersion.scanDir, targetVersion.files, true);
           
           if (!result.passed) {
             console.error(chalk.red('✗ Verification failed. Cannot submit.'));
-            console.log(chalk.gray('Fix verification errors or use --skip-verify to bypass (not recommended)'));
+            console.log(chalk.gray('Fix verification errors or use --skip-verify to bypass hash/size checks (license rules CANNOT be bypassed)'));
             process.exit(1);
           }
           console.log(chalk.green('✓ Verification passed'));
+          console.log('');
+        } else {
+          console.log(chalk.yellow('⚠ --skip-verify used, but license HARD BLOCK check still enforced'));
+          console.log(chalk.gray('  Checking license compliance is always enforced regardless of --skip-verify'));
+          const licenseCheck = validator.verify(targetVersion.scanDir, targetVersion.files, false);
+          const hardBlock = validator.hasHardBlockErrors(licenseCheck);
+          if (hardBlock.blocked) {
+            console.error(chalk.red('✗ HARD BLOCK: License rules violated — CANNOT be bypassed, even with --skip-verify'));
+            hardBlock.reasons.forEach(r => console.error(chalk.red(`  → ${r}`)));
+            console.log(chalk.gray('Fix license issues before submitting.'));
+            process.exit(1);
+          }
+          console.log(chalk.green('✓ License hard block check passed'));
           console.log('');
         }
 
