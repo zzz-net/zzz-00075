@@ -16,8 +16,8 @@ export class DryRunEngine {
     const currentPubId = state.currentVersion;
     const currentPub = currentPubId ? state.versions[currentPubId] : null;
 
-    const versionCount = Object.keys(state.versions).length;
-    const candidateVersion = `v${versionCount + 1}.0.0`;
+    const candidateVersion = targetVersion.version;
+    const nextAvailableVersion = `v${Object.keys(state.versions).length + 1}.0.0`;
 
     const blockReasons: string[] = [];
     let blockedAt: DryRunBlockStage = 'none';
@@ -95,6 +95,7 @@ export class DryRunEngine {
       versionId: targetVersion.id,
       versionLabel: targetVersion.version,
       candidateVersion,
+      nextAvailableVersion,
       currentStatus: targetVersion.status,
       ruleVersion: state.ruleConfig.version,
       rulesSnapshot,

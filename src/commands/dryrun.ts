@@ -21,10 +21,11 @@ function formatDryRunReport(r: DryRunResult): string {
   lines.push(bold('========================================'));
   lines.push('');
 
-  lines.push(bold('Candidate Version'));
+  lines.push(bold('Target Version'));
   lines.push(`  ${info('Version:')}        ${r.versionLabel}`);
   lines.push(`  ${info('Version ID:')}    ${r.versionId}`);
-  lines.push(`  ${info('Candidate:')}     ${r.candidateVersion}`);
+  lines.push(`  ${info('Would become:')}  ${r.candidateVersion} ${dim('(same version label, status will change)')}`);
+  lines.push(`  ${info('Next scan would get:')} ${r.nextAvailableVersion}`);
   lines.push(`  ${info('Current status:')}${r.currentStatus}`);
   lines.push(`  ${info('Timestamp:')}     ${r.timestamp}`);
   lines.push('');

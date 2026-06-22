@@ -110,6 +110,7 @@ export interface DryRunResult {
   versionId: string;
   versionLabel: string;
   candidateVersion: string;
+  nextAvailableVersion: string;
   currentStatus: VersionStatus;
   ruleVersion: string;
   rulesSnapshot: ValidationRule[];

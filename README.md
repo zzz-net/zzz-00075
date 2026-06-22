@@ -103,7 +103,7 @@ npm run dev -- config set-hash --disable  # 禁用哈希校验
 npm run dev -- config reset
 ```
 
-### 5. 校验版本
+### 5. 发布前预演 (Dry Run)
 
 ```bash
 # 校验最新草稿版本
@@ -116,7 +116,7 @@ npm run dev -- verify <versionId>
 npm run dev -- verify --quick
 ```
 
-### 6. 提交审批
+### 7. 提交审批
 
 ```bash
 # 提交最新草稿版本
@@ -128,11 +128,11 @@ npm run dev -- submit <versionId>
 # 指定提交人
 npm run dev -- submit --by alice
 
-# 跳过校验提交（不推荐）
+# 跳过校验提交（不推荐，哈希/大小可跳，许可证仍强制执行）
 npm run dev -- submit --skip-verify
 ```
 
-### 7. 发布版本
+### 8. 发布版本
 
 ```bash
 # 发布待审版本（必需审批人）
@@ -144,11 +144,11 @@ npm run dev -- publish <versionId> --approver bob
 # 带审批备注
 npm run dev -- publish --approver bob --comment "数据校验通过，符合发布标准"
 
-# 强制发布（校验失败时，危险操作）
+# 强制发布（仅覆盖哈希/大小，许可证仍强制执行）
 npm run dev -- publish --approver bob --force
 ```
 
-### 8. 导出清单
+### 9. 导出清单
 
 ```bash
 # 导出当前发布版本的清单
@@ -161,7 +161,7 @@ npm run dev -- export --output ./my-dataset-manifest.json
 npm run dev -- export <versionId> --output ./manifest-v1.json
 ```
 
-### 9. 回滚版本
+### 10. 回滚版本
 
 ```bash
 # 回滚到指定版本
@@ -171,7 +171,7 @@ npm run dev -- rollback <targetVersionId> --by alice
 npm run dev -- rollback <targetVersionId> --by alice --reason "新版本数据有问题"
 ```
 
-### 10. 查看历史
+### 11. 查看历史
 
 ```bash
 # 查看所有状态转换历史
