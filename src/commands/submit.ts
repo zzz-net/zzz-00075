@@ -3,28 +3,15 @@ import chalk from 'chalk';
 import { FileStorage } from '../storage/FileStorage';
 import { DryRunEngine } from '../services/DryRunEngine';
 import { DryRunResult } from '../types';
-
-function printDryRunBlock(r: DryRunResult): void {
-  if (r.blockedAt === 'hard_block') {
-    console.error(chalk.red('HARD BLOCK: License rules violated - CANNOT be bypassed, even with --skip-verify'));
-    r.hardBlock.reasons.forEach(re => console.error(chalk.red(`  -> ${re}`)));
-    console.log(chalk.gray('Fix license issues before submitting.'));
-  } else if (r.blockedAt === 'verification') {
-    console.error(chalk.red('Verification failed. Cannot submit.'));
-    r.verifyResult.errors.forEach(err => console.log(`  ${chalk.red('->')} ${err}`));
-    console.log(chalk.gray('Fix errors or use --skip-verify to bypass hash/size checks (license rules CANNOT be bypassed)'));
-  } else if (r.blockedAt === 'status_check') {
-    console.error(chalk.red(`Cannot submit version with status: ${r.currentStatus}`));
-    console.log(chalk.gray('Only draft versions can be submitted for approval'));
-  }
-}
+import { printBlockReasons, formatSummaryBox } from '../services/DryRunSummary';
 
 export function registerSubmitCommand(program: Command, storage: FileStorage): void {
   program
     .command('submit [versionId]')
-    .description('Submit a draft version for approval')
+    .description('Submit a draft version for approval (try `dry-run submit` first to pre-check)')
     .option('--by <user>', 'User submitting the version', 'system')
     .option('--skip-verify', 'Skip hash/size verification (license HARD BLOCK still enforced)')
+    .option('--dry-run', 'Preview what submit would do without changing state (alias for dry-run submit)')
     .action(async (versionId: string | undefined, options: any) => {
       try {
         let state = storage.loadState();
@@ -34,12 +21,15 @@ export function registerSubmitCommand(program: Command, storage: FileStorage): v
           targetVersion = state.versions[versionId];
           if (!targetVersion) {
             console.error(chalk.red(`Version not found: ${versionId}`));
+            console.log(chalk.gray('Tip: Use `dataset-cli status all` to list all versions.'));
             process.exit(1);
           }
         } else {
           const drafts = storage.getVersionsByStatus(state, 'draft');
           if (drafts.length === 0) {
             console.error(chalk.red('No draft versions found to submit'));
+            console.log(chalk.gray('Run `dataset-cli scan <directory>` first to create a draft version.'));
+            console.log(chalk.gray('Tip: Run `dataset-cli dry-run submit` to pre-check before submitting.'));
             process.exit(1);
           }
           targetVersion = drafts[0];
@@ -51,8 +41,19 @@ export function registerSubmitCommand(program: Command, storage: FileStorage): v
           skipVerify: !!options.skipVerify
         });
 
+        if (options.dryRun) {
+          console.log(formatSummaryBox(precheck));
+          console.log(chalk.gray('(This was a --dry-run preview. No state was changed.)'));
+          if (precheck.blockedAt !== 'none') {
+            process.exit(1);
+          }
+          return;
+        }
+
         if (precheck.blockedAt !== 'none') {
-          printDryRunBlock(precheck);
+          printBlockReasons(precheck);
+          console.log('');
+          console.log(chalk.yellow('Tip: Run `dataset-cli dry-run submit` for a detailed pre-flight report before submitting.'));
           process.exit(1);
         }
 
@@ -80,7 +81,9 @@ export function registerSubmitCommand(program: Command, storage: FileStorage): v
         console.log(chalk.gray(`  Submitted by: ${options.by}`));
         console.log(chalk.gray(`  Files: ${updatedVersion.files.length}`));
         console.log('');
-        console.log(chalk.yellow('Next step: Run `dataset-cli publish` to approve and publish'));
+        console.log(chalk.yellow('Recommended next steps:'));
+        console.log(`  1. ${chalk.cyan('dataset-cli dry-run publish --approver <name>')} - Pre-check publish readiness`);
+        console.log(`  2. ${chalk.cyan('dataset-cli publish --approver <name>')} - Approve and publish`);
 
       } catch (error) {
         console.error(chalk.red(`Error: ${error instanceof Error ? error.message : error}`));

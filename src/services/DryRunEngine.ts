@@ -1,5 +1,6 @@
 import { CLIState, DatasetVersion, DryRunResult, DryRunAction, DryRunBlockStage, ValidationRule } from '../types';
 import { Validator } from './Validator';
+import { buildStableSummary } from './DryRunSummary';
 
 export class DryRunEngine {
   evaluate(
@@ -89,7 +90,7 @@ export class DryRunEngine {
 
     const rulesSnapshot: ValidationRule[] = state.ruleConfig.rules.map(r => ({ ...r, config: { ...r.config } }));
 
-    return {
+    const preliminary: DryRunResult = {
       action,
       timestamp: now,
       versionId: targetVersion.id,
@@ -114,8 +115,25 @@ export class DryRunEngine {
       blockReasons,
       nextSteps,
       skipVerifyUsed: skipVerify,
-      forceUsed: force
+      forceUsed: force,
+      summary: {
+        targetVersionLabel: '',
+        targetVersionId: '',
+        targetVersionStatus: '',
+        blockStage: '',
+        blockStageLabel: '',
+        willReplaceCurrentPublished: false,
+        currentPublishedVersionLabel: null,
+        currentPublishedVersionId: null,
+        suggestedNextCommand: '',
+        ruleVersion: '',
+        fileCount: 0,
+        totalSize: 0
+      }
     };
+
+    preliminary.summary = buildStableSummary(preliminary);
+    return preliminary;
   }
 
   private buildNextSteps(

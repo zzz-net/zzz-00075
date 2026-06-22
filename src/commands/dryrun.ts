@@ -5,6 +5,7 @@ import * as path from 'path';
 import { FileStorage } from '../storage/FileStorage';
 import { DryRunEngine } from '../services/DryRunEngine';
 import { DryRunResult } from '../types';
+import { formatSummaryBox, printBlockReasons } from '../services/DryRunSummary';
 
 function formatDryRunReport(r: DryRunResult): string {
   const lines: string[] = [];
@@ -15,22 +16,23 @@ function formatDryRunReport(r: DryRunResult): string {
   const dim = chalk.gray;
   const bold = chalk.bold;
 
-  lines.push('');
+  lines.push(formatSummaryBox(r));
+
   lines.push(bold('========================================'));
-  lines.push(bold(`  DRY RUN: ${r.action.toUpperCase()}`));
+  lines.push(bold(`  DETAILED DRY RUN: ${r.action.toUpperCase()}`));
   lines.push(bold('========================================'));
   lines.push('');
 
-  lines.push(bold('Target Version'));
+  lines.push(bold('Target Version Details'));
   lines.push(`  ${info('Version:')}        ${r.versionLabel}`);
   lines.push(`  ${info('Version ID:')}    ${r.versionId}`);
   lines.push(`  ${info('Would become:')}  ${r.candidateVersion} ${dim('(same version label, status will change)')}`);
   lines.push(`  ${info('Next scan would get:')} ${r.nextAvailableVersion}`);
-  lines.push(`  ${info('Current status:')}${r.currentStatus}`);
+  lines.push(`  ${info('Current status:')} ${r.currentStatus}`);
   lines.push(`  ${info('Timestamp:')}     ${r.timestamp}`);
   lines.push('');
 
-  lines.push(bold('Applied Rules'));
+  lines.push(bold('Applied Rules (Snapshot)'));
   lines.push(`  ${info('Rule version:')}  ${r.ruleVersion}`);
   r.rulesSnapshot.forEach(rule => {
     const st = rule.enabled ? ok('ON') : err('OFF');
@@ -62,7 +64,7 @@ function formatDryRunReport(r: DryRunResult): string {
   });
   lines.push('');
 
-  lines.push(bold('Current Published Version Impact'));
+  lines.push(bold('Published Version Impact'));
   if (r.currentPublishedVersionId) {
     lines.push(`  ${info('Current version:')}  ${r.currentPublishedVersionLabel} (${r.currentPublishedVersionId})`);
     if (r.currentPublishedWouldBeReplaced) {
@@ -134,20 +136,30 @@ function formatDryRunReport(r: DryRunResult): string {
   r.nextSteps.forEach((ns, i) => lines.push(`  ${i + 1}. ${ns}`));
   lines.push('');
 
+  lines.push(bold('Stable Summary (for reference)'));
+  lines.push(`  ${info('Target:')}    ${r.summary.targetVersionLabel} (${r.summary.targetVersionId.substring(0, 16)}...)`);
+  lines.push(`  ${info('Blocked at:')} ${r.summary.blockStageLabel}`);
+  lines.push(`  ${info('Replace:')}   ${r.summary.willReplaceCurrentPublished ? 'YES' : 'NO'}`);
+  if (r.summary.currentPublishedVersionLabel) {
+    lines.push(`  ${info('Current:')}   ${r.summary.currentPublishedVersionLabel} (${r.summary.currentPublishedVersionId?.substring(0, 16)}...)`);
+  }
+  lines.push(`  ${info('Next cmd:')}  ${r.summary.suggestedNextCommand || '(none)'}`);
+  lines.push('');
+
   return lines.join('\n');
 }
 
 export function registerDryRunCommand(program: Command, storage: FileStorage): void {
   const dryRun = program
     .command('dry-run')
-    .description('Pre-flight check: preview what submit or publish would do, without changing any state');
+    .description('Pre-flight check: preview what submit/publish would do WITHOUT changing any state. Run BEFORE submit or publish.');
 
   dryRun
     .command('submit [versionId]')
-    .description('Preview a submit operation')
-    .option('--by <user>', 'User submitting the version', 'system')
+    .description('Preview a submit operation. Shows if the version can be moved to pending_approval')
+    .option('--by <user>', 'User submitting the version (for reference only, no state change)', 'system')
     .option('--skip-verify', 'Skip hash/size verification (license HARD BLOCK still enforced)')
-    .option('--json <path>', 'Export dry-run result as JSON')
+    .option('--json <path>', 'Export dry-run result as JSON for audit/review by others')
     .action(async (versionId: string | undefined, options: any) => {
       try {
         const state = storage.loadState();
@@ -162,10 +174,12 @@ export function registerDryRunCommand(program: Command, storage: FileStorage): v
         } else {
           const drafts = storage.getVersionsByStatus(state, 'draft');
           if (drafts.length === 0) {
-            console.error(chalk.red('No draft versions found'));
+            console.error(chalk.red('No draft versions found. Run `dataset-cli scan <directory>` first.'));
+            console.log(chalk.gray('Tip: Use `dataset-cli status all` to list all versions.'));
             process.exit(1);
           }
           targetVersion = drafts[0];
+          console.log(chalk.gray(`Using latest draft: ${targetVersion.version} (${targetVersion.id})`));
         }
 
         const engine = new DryRunEngine();
@@ -177,11 +191,14 @@ export function registerDryRunCommand(program: Command, storage: FileStorage): v
           const jsonPath = path.resolve(options.json);
           fs.writeFileSync(jsonPath, JSON.stringify(result, null, 2), 'utf8');
           console.log(chalk.green(`Dry-run result exported to: ${jsonPath}`));
+          console.log(chalk.gray('The exported JSON contains the stable summary field that is consistent across restarts.'));
         } else {
           console.log(formatDryRunReport(result));
         }
 
         if (result.blockedAt !== 'none') {
+          console.log(chalk.yellow('---'));
+          printBlockReasons(result);
           process.exit(1);
         }
 
@@ -193,12 +210,12 @@ export function registerDryRunCommand(program: Command, storage: FileStorage): v
 
   dryRun
     .command('publish [versionId]')
-    .description('Preview a publish operation')
-    .requiredOption('--approver <name>', 'Approver name')
-    .option('--comment <text>', 'Approval comment', 'Approved for publication')
+    .description('Preview a publish operation. Shows if the version can become the current published version')
+    .requiredOption('--approver <name>', 'Approver name (for reference only, no state change)')
+    .option('--comment <text>', 'Approval comment (for reference only)', 'Approved for publication')
     .option('--skip-verify', 'Skip hash/size verification (license HARD BLOCK still enforced)')
     .option('--force', 'Force publish overriding hash/size (license HARD BLOCK still enforced)')
-    .option('--json <path>', 'Export dry-run result as JSON')
+    .option('--json <path>', 'Export dry-run result as JSON for audit/review by others')
     .action(async (versionId: string | undefined, options: any) => {
       try {
         const state = storage.loadState();
@@ -213,10 +230,12 @@ export function registerDryRunCommand(program: Command, storage: FileStorage): v
         } else {
           const pending = storage.getVersionsByStatus(state, 'pending_approval');
           if (pending.length === 0) {
-            console.error(chalk.red('No pending versions found'));
+            console.error(chalk.red('No pending versions found. Run `dataset-cli submit` first.'));
+            console.log(chalk.gray('Tip: Use `dataset-cli status all` to list all versions.'));
             process.exit(1);
           }
           targetVersion = pending[0];
+          console.log(chalk.gray(`Using latest pending: ${targetVersion.version} (${targetVersion.id})`));
         }
 
         const engine = new DryRunEngine();
@@ -229,11 +248,14 @@ export function registerDryRunCommand(program: Command, storage: FileStorage): v
           const jsonPath = path.resolve(options.json);
           fs.writeFileSync(jsonPath, JSON.stringify(result, null, 2), 'utf8');
           console.log(chalk.green(`Dry-run result exported to: ${jsonPath}`));
+          console.log(chalk.gray('The exported JSON contains the stable summary field that is consistent across restarts.'));
         } else {
           console.log(formatDryRunReport(result));
         }
 
         if (result.blockedAt !== 'none') {
+          console.log(chalk.yellow('---'));
+          printBlockReasons(result);
           process.exit(1);
         }
 

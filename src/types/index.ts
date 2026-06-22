@@ -104,6 +104,21 @@ export interface Manifest {
 export type DryRunAction = 'submit' | 'publish';
 export type DryRunBlockStage = 'none' | 'status_check' | 'hard_block' | 'verification' | null;
 
+export interface DryRunStableSummary {
+  targetVersionLabel: string;
+  targetVersionId: string;
+  targetVersionStatus: string;
+  blockStage: string;
+  blockStageLabel: string;
+  willReplaceCurrentPublished: boolean;
+  currentPublishedVersionLabel: string | null;
+  currentPublishedVersionId: string | null;
+  suggestedNextCommand: string;
+  ruleVersion: string;
+  fileCount: number;
+  totalSize: number;
+}
+
 export interface DryRunResult {
   action: DryRunAction;
   timestamp: string;
@@ -130,4 +145,5 @@ export interface DryRunResult {
   nextSteps: string[];
   skipVerifyUsed: boolean;
   forceUsed: boolean;
+  summary: DryRunStableSummary;
 }

@@ -19,8 +19,18 @@ const storage = new FileStorage(process.cwd());
 
 program
   .name('dataset-cli')
-  .description('Offline dataset manifest publishing CLI with version control and approval workflow')
-  .version('1.0.0');
+  .description(
+    'Offline dataset manifest publishing CLI with version control and approval workflow.\n' +
+    '  Recommended pre-flight: use `dry-run submit` and `dry-run publish` BEFORE real operations.'
+  )
+  .version('1.0.0')
+  .addHelpText('after', `
+Pre-flight Commands (run THESE first to avoid mistakes):
+  ${chalk.cyan('dry-run submit')}     Preview submit without changing state
+  ${chalk.cyan('dry-run publish')}    Preview publish without changing state
+  ${chalk.cyan('submit --dry-run')}   Quick preview via submit command alias
+  ${chalk.cyan('publish --dry-run')}  Quick preview via publish command alias
+`);
 
 program
   .command('init')
@@ -38,11 +48,20 @@ program
       console.log(`  ${status} ${rule.type}`);
     });
     console.log('');
-    console.log(chalk.gray('Next steps:'));
-    console.log(`  1. ${chalk.cyan('dataset-cli scan <directory>')} - Scan your dataset directory`);
-    console.log(`  2. ${chalk.cyan('dataset-cli verify')} - Verify against rules`);
-    console.log(`  3. ${chalk.cyan('dataset-cli submit')} - Submit for approval`);
-    console.log(`  4. ${chalk.cyan('dataset-cli publish --approver <name>')} - Approve and publish`);
+    console.log(chalk.bold.yellow('RECOMMENDED WORKFLOW (with pre-flight checks):'));
+    console.log(`  1. ${chalk.cyan('dataset-cli scan <directory>')}           - Scan your dataset directory`);
+    console.log(`  2. ${chalk.cyan('dataset-cli dry-run submit')}            - Pre-check if submit will succeed`);
+    console.log(`  3. ${chalk.cyan('dataset-cli submit')}                     - Submit for approval (if pre-check passes)`);
+    console.log(`  4. ${chalk.cyan('dataset-cli dry-run publish --approver')} - Pre-check if publish will succeed`);
+    console.log(`  5. ${chalk.cyan('dataset-cli publish --approver <name>')}  - Approve and publish (if pre-check passes)`);
+    console.log(`  6. ${chalk.cyan('dataset-cli export')}                     - Export the manifest`);
+    console.log('');
+    console.log(chalk.bold('Quick aliases (--dry-run on the command itself):'));
+    console.log(`  ${chalk.cyan('dataset-cli submit --dry-run')}`);
+    console.log(`  ${chalk.cyan('dataset-cli publish --dry-run --approver <name>')}`);
+    console.log('');
+    console.log(chalk.gray('Tip: Always run the dry-run variants first to catch configuration issues early.'));
+    console.log(chalk.gray('Tip: Use --json on dry-run to export results for team review.'));
   });
 
 registerScanCommand(program, storage);

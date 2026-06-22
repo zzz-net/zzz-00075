@@ -3,39 +3,17 @@ import chalk from 'chalk';
 import { FileStorage } from '../storage/FileStorage';
 import { DryRunEngine } from '../services/DryRunEngine';
 import { DryRunResult } from '../types';
-
-function printDryRunBlock(r: DryRunResult): void {
-  if (r.blockedAt === 'hard_block') {
-    console.error(chalk.red('HARD BLOCK: License rules violated - CANNOT be bypassed, even with --force'));
-    r.hardBlock.reasons.forEach(re => console.error(chalk.red(`  -> ${re}`)));
-    console.log('');
-    console.log(chalk.gray('Fix license issues before publishing. --force is NOT permitted for license violations.'));
-  } else if (r.blockedAt === 'verification') {
-    console.error(chalk.red('Verification failed. Cannot publish.'));
-    console.log('');
-    r.verifyResult.errors.forEach(err => {
-      console.log(`  ${chalk.red('->')} ${err}`);
-    });
-    console.log('');
-    if (r.forceUsed) {
-      console.log(chalk.gray('Even --force cannot override these errors (they may be hard blocks).'));
-    } else {
-      console.log(chalk.gray('Fix errors and retry, or use --force to override hash/size (license rules CANNOT be overridden)'));
-    }
-  } else if (r.blockedAt === 'status_check') {
-    console.error(chalk.red(`Cannot publish version with status: ${r.currentStatus}`));
-    console.log(chalk.gray('Only pending_approval versions can be published'));
-  }
-}
+import { printBlockReasons, formatSummaryBox } from '../services/DryRunSummary';
 
 export function registerPublishCommand(program: Command, storage: FileStorage): void {
   program
     .command('publish [versionId]')
-    .description('Approve and publish a pending version')
+    .description('Approve and publish a pending version (try `dry-run publish` first to pre-check)')
     .requiredOption('--approver <name>', 'Approver name')
     .option('--comment <text>', 'Approval comment', 'Approved for publication')
     .option('--skip-verify', 'Skip hash/size verification (license HARD BLOCK still enforced)')
     .option('--force', 'Force publish overriding hash/size (license HARD BLOCK still enforced)')
+    .option('--dry-run', 'Preview what publish would do without changing state (alias for dry-run publish)')
     .action(async (versionId: string | undefined, options: any) => {
       try {
         let state = storage.loadState();
@@ -45,13 +23,15 @@ export function registerPublishCommand(program: Command, storage: FileStorage): 
           targetVersion = state.versions[versionId];
           if (!targetVersion) {
             console.error(chalk.red(`Version not found: ${versionId}`));
+            console.log(chalk.gray('Tip: Use `dataset-cli status all` to list all versions.'));
             process.exit(1);
           }
         } else {
           const pending = storage.getVersionsByStatus(state, 'pending_approval');
           if (pending.length === 0) {
             console.error(chalk.red('No pending versions found to publish'));
-            console.log(chalk.gray('Use `dataset-cli submit` first to submit a draft for approval'));
+            console.log(chalk.gray('Use `dataset-cli submit` first to submit a draft for approval.'));
+            console.log(chalk.gray('Tip: Run `dataset-cli dry-run publish --approver <name>` to pre-check before publishing.'));
             process.exit(1);
           }
           targetVersion = pending[0];
@@ -69,8 +49,19 @@ export function registerPublishCommand(program: Command, storage: FileStorage): 
           force: !!options.force
         });
 
+        if (options.dryRun) {
+          console.log(formatSummaryBox(precheck));
+          console.log(chalk.gray('(This was a --dry-run preview. No state was changed.)'));
+          if (precheck.blockedAt !== 'none') {
+            process.exit(1);
+          }
+          return;
+        }
+
         if (precheck.blockedAt !== 'none') {
-          printDryRunBlock(precheck);
+          printBlockReasons(precheck);
+          console.log('');
+          console.log(chalk.yellow('Tip: Run `dataset-cli dry-run publish --approver <name>` for a detailed pre-flight report before publishing.'));
           process.exit(1);
         }
 
@@ -118,8 +109,9 @@ export function registerPublishCommand(program: Command, storage: FileStorage): 
         }
         
         console.log('');
-        console.log(chalk.gray('You can run `dataset-cli export` to export the manifest to a custom location'));
-        console.log(chalk.gray('Run `dataset-cli status` to see all versions'));
+        console.log(chalk.yellow('Recommended next steps:'));
+        console.log(`  1. ${chalk.cyan('dataset-cli status current')} - Verify the new published version`);
+        console.log(`  2. ${chalk.cyan('dataset-cli export --output <path>')} - Export the manifest for distribution`);
 
       } catch (error) {
         console.error(chalk.red(`Error: ${error instanceof Error ? error.message : error}`));
