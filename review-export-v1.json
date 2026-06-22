@@ -1,0 +1,48 @@
+{
+  "version": "1.0",
+  "datasetVersion": "v1782093159397-3e174586",
+  "generatedAt": "2026-06-22T01:54:21.628Z",
+  "ruleVersion": "v1",
+  "files": [
+    {
+      "path": "images/cat.jpg",
+      "size": 26,
+      "sha256": "d60b0b4f053d3d3ceadf1f755c3b38aaa861f08431bbc9baf861fae5d88ff180"
+    },
+    {
+      "path": "images/dog.jpg",
+      "size": 26,
+      "sha256": "f875c1008323b34154c0742c989236bf6cff20f11894f769a2600a9f9fec7dee"
+    },
+    {
+      "path": "labels/train.csv",
+      "size": 39,
+      "sha256": "c41360ff4121a5e374df845fa340b9de341e1acb5cf435af3328a1a8ca4076f1"
+    },
+    {
+      "path": "labels/val.csv",
+      "size": 26,
+      "sha256": "6a82759f72417d318e6cf1034b1af12aa8ecc02641e6b0dcb203e82c39cd4f35"
+    },
+    {
+      "path": "LICENSE",
+      "size": 1093,
+      "sha256": "7acaa70b4974c791566bd5b9279bb8b8b312bf14aec16144e2ea354f655cf6ba",
+      "license": "MIT"
+    },
+    {
+      "path": "README.md",
+      "size": 169,
+      "sha256": "30b81152c4764460555b9f89ae7b8871642a578edd96c7b08275b6a81f82067f"
+    }
+  ],
+  "totalSize": 1379,
+  "fileCount": 6,
+  "approval": {
+    "approver": "approver",
+    "comment": "initial publish",
+    "approvedAt": "2026-06-22T01:54:21.628Z",
+    "ruleVersion": "v1"
+  },
+  "signature": "136a70d5fe4d6d92fa8a76619ec88cafe1c575ffa1518d96c6050ed4b27331bc"
+}
